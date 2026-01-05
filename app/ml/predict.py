@@ -3,6 +3,16 @@ from app.ml.features import build_features
 from app.ml.model import build_training_data, train_and_evaluate
 from datetime import timedelta
 import pandas as pd
+from supabase import create_client
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 
 def predict_future(model, df_feat, days=3):
@@ -90,6 +100,23 @@ def run():
     print("\nFuture AQI predictions:")
     for p in future_preds:
         print(p)
+
+    # 5. Save predictions
+    save_predictions(future_preds)
+    print("Predictions saved to Supabase")
+
+
+def save_predictions(predictions, model_version="linear_v1"):
+    rows = []
+    for p in predictions:
+        rows.append({
+            "location": "Berlin",
+            "target_date": p["target_date"],
+            "predicted_aqi": p["predicted_aqi"],
+            "model_version": model_version
+        })
+
+    supabase.table("air_quality_predictions").insert(rows).execute()
 
 
 if __name__ == "__main__":
