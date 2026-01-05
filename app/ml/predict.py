@@ -1,3 +1,4 @@
+from fastapi import APIRouter
 from app.ml.dataloader import load_raw_data
 from app.ml.features import build_features
 from app.ml.model import build_training_data, train_and_evaluate
@@ -8,6 +9,8 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
+router = APIRouter(prefix="/aqi", tags=["AQI Predictions"])
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
@@ -117,6 +120,8 @@ def save_predictions(predictions, model_version="linear_v1"):
         })
 
     supabase.table("air_quality_predictions").insert(rows).execute()
+
+    
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+import supabase
 from app.api.aqi import router as aqi_router
 
 app = FastAPI(title="AQI Real API")

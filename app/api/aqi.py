@@ -24,3 +24,15 @@ def get_raw_aqi(location: str):
         .execute()
     )
     return response.data
+
+@router.get("/predictions")
+def get_predictions(location: str):
+    response = (
+        supabase
+        .table("air_quality_predictions")
+        .select("*")
+        .eq("location", location)
+        .order("target_date")
+        .execute()
+    )
+    return response.data
