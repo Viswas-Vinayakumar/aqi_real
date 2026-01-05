@@ -66,3 +66,5 @@ def train_and_evaluate(X, y):
     mae = mean_absolute_error(y_test, predictions)
 
     return model, mae
+
+#gitcheck

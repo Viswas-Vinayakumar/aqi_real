@@ -83,3 +83,5 @@ for i in range(0, len(records), BATCH_SIZE):
     response = supabase.table("air_quality_raw").insert(batch).execute()
 
 print("Done.")
+
+#gitcheck

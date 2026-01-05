@@ -121,7 +121,7 @@ def save_predictions(predictions, model_version="linear_v1"):
 
     supabase.table("air_quality_predictions").insert(rows).execute()
 
-    
+    #gitcheck
 
 
 if __name__ == "__main__":

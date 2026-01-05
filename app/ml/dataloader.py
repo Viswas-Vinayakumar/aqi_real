@@ -24,3 +24,5 @@ def load_raw_data(location="Berlin"):
     df["observed_date"] = pd.to_datetime(df["observed_date"])
 
     return df
+
+#gitcheck

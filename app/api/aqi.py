@@ -36,3 +36,5 @@ def get_predictions(location: str):
         .execute()
     )
     return response.data
+
+#gitcheck

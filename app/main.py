@@ -9,3 +9,5 @@ app.include_router(aqi_router)
 @app.get("/")
 def health():
     return {"status": "ok"}
+
+#gitcheck
