@@ -1,34 +1,44 @@
-from fastapi import APIRouter
+# app/ml/predict.py
+
+from datetime import timedelta
+import os
+import pandas as pd
+from dotenv import load_dotenv
+from supabase import create_client
+
 from app.ml.dataloader import load_raw_data
 from app.ml.features import build_features
 from app.ml.model import build_training_data, train_and_evaluate
-from datetime import timedelta
-import pandas as pd
-from supabase import create_client
-import os
-from dotenv import load_dotenv
+
+# --------------------------------------------------
+# Config
+# --------------------------------------------------
 
 load_dotenv()
-
-router = APIRouter(prefix="/aqi", tags=["AQI Predictions"])
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 
+LOCATION = "Berlin"
+MODEL_VERSION = "linear_v1"
+PREDICTION_DAYS = 3
+
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
+# --------------------------------------------------
+# Prediction logic
+# --------------------------------------------------
 
-def predict_future(model, df_feat, days=3):
+def predict_future(model, df_feat, days=PREDICTION_DAYS):
     """
-    Recursive forecasting:
-    Uses latest known data to predict future AQI step by step
+    Recursive multi-step AQI forecasting
     """
     df_future = df_feat.copy()
     predictions = []
 
     last_date = df_future["observed_date"].max()
 
-    for i in range(days):
+    for step in range(days):
         latest = df_future.iloc[-1:]
 
         X_latest = latest[
@@ -47,16 +57,16 @@ def predict_future(model, df_feat, days=3):
         ]
 
         predicted_aqi = int(model.predict(X_latest)[0])
-        target_date = last_date + timedelta(days=i + 1)
+        target_date = last_date + timedelta(days=step + 1)
 
-        predictions.append(
-            {
-                "target_date": target_date.isoformat(),
-                "predicted_aqi": predicted_aqi,
-            }
-        )
+        predictions.append({
+            "location": LOCATION,
+            "target_date": target_date.isoformat(),
+            "predicted_aqi": predicted_aqi,
+            "model_version": MODEL_VERSION,
+        })
 
-        # Feed prediction back into the dataset (recursive step)
+        # Feed prediction back into features (recursive step)
         new_row = latest.copy()
         new_row["observed_date"] = target_date
         new_row["aqi"] = predicted_aqi
@@ -70,59 +80,57 @@ def predict_future(model, df_feat, days=3):
 
     return predictions
 
+# --------------------------------------------------
+# Persistence
+# --------------------------------------------------
+
+def save_predictions(predictions):
+    """
+    Upsert predictions safely (no duplicates)
+    Requires UNIQUE(location, target_date, model_version)
+    """
+    if not predictions:
+        print("No predictions to save.")
+        return
+
+    supabase.table("air_quality_predictions") \
+        .upsert(
+            predictions,
+            on_conflict="location,target_date,model_version"
+        ) \
+        .execute()
+
+# --------------------------------------------------
+# Main pipeline
+# --------------------------------------------------
 
 def run():
-    # 1. Load historical data
+    print("Loading historical data...")
     df = load_raw_data()
 
-    # 2. Build features
+    print("Building features...")
     df_feat = build_features(df)
 
-    print(df_feat[
-        [
-            "observed_date",
-            "pm25",
-            "pm10",
-            "pm25_ratio",
-            "gas_load",
-            "pm25_3day_avg",
-        ]
-    ].head())
+    print(f"Feature rows: {len(df_feat)}")
 
-    print("Feature rows:", len(df_feat))
-
-    # 3. Train + evaluate model
+    print("Training model...")
     X, y = build_training_data(df_feat)
     model, mae = train_and_evaluate(X, y)
 
-    print("Test MAE:", mae)
+    print(f"Model MAE: {mae:.2f}")
 
-    # 4. Predict next 3 days
-    future_preds = predict_future(model, df_feat, days=3)
+    print("Predicting future AQI...")
+    future_predictions = predict_future(model, df_feat)
 
-    print("\nFuture AQI predictions:")
-    for p in future_preds:
+    for p in future_predictions:
         print(p)
 
-    # 5. Save predictions
-    save_predictions(future_preds)
-    print("Predictions saved to Supabase")
+    print("Saving predictions to Supabase...")
+    save_predictions(future_predictions)
 
+    print("Pipeline completed successfully.")
 
-def save_predictions(predictions, model_version="linear_v1"):
-    rows = []
-    for p in predictions:
-        rows.append({
-            "location": "Berlin",
-            "target_date": p["target_date"],
-            "predicted_aqi": p["predicted_aqi"],
-            "model_version": model_version
-        })
-
-    supabase.table("air_quality_predictions").insert(rows).execute()
-
-    #gitcheck
-
+# --------------------------------------------------
 
 if __name__ == "__main__":
     run()
